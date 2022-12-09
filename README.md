@@ -21,3 +21,25 @@ $ pip install scrapy
 $ scrapy crawl SteamGamesSpider -O result.json --nolog
 ```
 The result will be saved to result.json file
+
+## JSON result data types
+
+```perl
+[
+  {
+    "title" : string,
+    "category" : array[string],
+    "reviews_number" : int,
+    "rating_value" : int,
+    "reviews_summary" : string,
+    "release_date" : string, # in '%d-%m-%Y format
+    "developer" : string,
+    "tags" : array[string],
+    "genres" : array[string],
+    "initial_price" : float,
+    "discounted_price" : float,
+    "discount" : int, # e.g.: -31 means -31%
+    "available_platforms" : array[string]
+  }
+]
+```
