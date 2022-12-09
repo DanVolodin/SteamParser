@@ -6,7 +6,7 @@ An application for parsing Steam - online game store - using scrapy spiders.
 
 To run parser:
 
-1. Add queries you want to search to **SteamParser/spider_steam/spiders/SteamGamesSpider.py** to *queries* variable
+1. Add queries you want to search to **SteamParser/spider_steam/spiders/SteamGamesSpider.py** to *queries* variable. You can also chage *SteamGamesSpider.max_pages* variable to alter the number of parsed search pages.
 1. Install scrapy:
 
 ```sh
