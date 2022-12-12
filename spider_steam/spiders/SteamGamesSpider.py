@@ -23,6 +23,7 @@ class SteamGamesSpider(scrapy.Spider):
     name = 'SteamGamesSpider'
     base_url = 'https://store.steampowered.com/search/?'
     max_pages = 5
+    release_date_boundary = dt.datetime(year=2001, day=1, month=1)
 
     def start_requests(self):
         for query in queries:
@@ -46,50 +47,63 @@ class SteamGamesSpider(scrapy.Spider):
     def get_text_list(selector, xpath):
         return list(map(lambda r: SteamGamesSpider.get_text(r, '.'), selector.xpath(xpath)))
 
-    def parse_query(self, response):
+    @staticmethod
+    def get_platforms(game_selector):
+        platforms_spans = game_selector.xpath('.//span[contains(@class, "platform_img")]')
+        return list(map(lambda span: span.attrib['class'].split()[1], platforms_spans))
 
-        def get_platforms(game_selector):
-            platforms_spans = game_selector.xpath('.//span[contains(@class, "platform_img")]')
-            return list(map(lambda span: span.attrib['class'].split()[1], platforms_spans))
-
-        def get_price_and_discount(game_selector):
+    @staticmethod
+    def get_price_and_discount(game_selector):
             try:
-                discount = self.get_text(
+                discount = SteamGamesSpider.get_text(
                     game_selector,
-                    './/div[@class="col search_discount responsive_secondrow"]/span'
+                    './/div[contains(@class, "search_discount")]/span'
                 )
             except:
                 discount = 0
             if discount == 0:
-                initial_price_str = self.get_text(
+                initial_price_str = SteamGamesSpider.get_text(
                     game_selector,
-                    './/div[@class="col search_price  responsive_secondrow"]'
+                    './/div[contains(@class, "search_price")]'
                 )
-                initial_price = self.extract_price(initial_price_str) # для бесплатных оно вернет 0
+                initial_price = SteamGamesSpider.extract_price(initial_price_str) # для бесплатных оно вернет 0
                 discounted_price = initial_price
             else:
                 discount = int(discount[:-1])
-                initial_price_str = self.get_text(
+                initial_price_str = SteamGamesSpider.get_text(
                     game_selector,
-                    './/div[@class="col search_price discounted responsive_secondrow"]/span/strike'
+                    './/div[contains(@class, "search_price discounted")]/span/strike'
                 )
-                initial_price = self.extract_price(initial_price_str)
+                initial_price = SteamGamesSpider.extract_price(initial_price_str)
                 discounted_price_str = game_selector\
-                    .xpath('.//div[@class="col search_price discounted responsive_secondrow"]/text()')\
+                    .xpath('.//div[contains(@class, "search_price discounted")]/text()')\
                     .getall()[1].strip()
-                discounted_price = self.extract_price(discounted_price_str)
+                discounted_price = SteamGamesSpider.extract_price(discounted_price_str)
             return [initial_price, discounted_price, discount]
 
+    @staticmethod
+    def get_release_date(game_selector):
+        release_date = SteamGamesSpider.get_text(game_selector, './/div[contains(@class, "search_released")]')
+        try:
+            release_date = dt.datetime.strftime(parse(release_date), '%d-%m-%Y')
+        except:
+            release_date = 'Coming soon'
+        return release_date
+
+    def parse_query(self, response):
         for game in response.xpath('//a[contains(@class, "search_result_row")]'):
             game_url = game.attrib['href']
             if '/app' in game_url:
-                available_platforms = get_platforms(game)
-                initial_price, discounted_price, discount = get_price_and_discount(game)
-                yield scrapy.Request(url=game_url, callback=self.parse,
-                                     cb_kwargs={'available_platforms': available_platforms,
-                                                'initial_price': initial_price,
-                                                'discounted_price': discounted_price,
-                                                'discount': discount})
+                available_platforms = self.get_platforms(game)
+                initial_price, discounted_price, discount = self.get_price_and_discount(game)
+                release_date = self.get_release_date(game)
+                if release_date == "Coming soon" or parse(release_date, dayfirst=True) >= self.release_date_boundary:
+                    yield scrapy.Request(url=game_url, callback=self.parse,
+                                         cb_kwargs={'available_platforms': available_platforms,
+                                                    'release_date': release_date,
+                                                    'initial_price': initial_price,
+                                                    'discounted_price': discounted_price,
+                                                    'discount': discount})
 
         params = parse_qs(urlparse(response.url).query)
         page = int(params['page'][0])
@@ -98,7 +112,8 @@ class SteamGamesSpider(scrapy.Spider):
             url = self.base_url + urlencode({'term': query, 'page': str(page + 1)})
             yield scrapy.Request(url=url, callback=self.parse_query)
 
-    def get_reviews(self, response):
+    @staticmethod
+    def get_reviews(response):
         reviews_div = response.xpath('//div[@itemprop = "aggregateRating"]//div[@class = "summary column"]')
         try:
             reviews_number = int(reviews_div.xpath('.//meta[@itemprop = "reviewCount"]').attrib['content'])
@@ -107,19 +122,11 @@ class SteamGamesSpider(scrapy.Spider):
             reviews_number = 0
             rating_value = 0
         try:
-            reviews_summary = self.get_text(reviews_div, './/span[@itemprop = "description"]')
+            reviews_summary = SteamGamesSpider.get_text(reviews_div, './/span[@itemprop = "description"]')
         except:
             # "No user reviews"
-            reviews_summary = self.get_text(reviews_div, '.')
+            reviews_summary = SteamGamesSpider.get_text(reviews_div, '.')
         return reviews_number, rating_value, reviews_summary
-
-    def get_release_date(self, response):
-        release_date = self.get_text(response, '//div[@class = "release_date"]/div[@class = "date"]')
-        try:
-            release_date = dt.datetime.strftime(parse(release_date), '%d-%m-%Y')
-        except:
-            release_date = 'Coming soon'
-        return release_date
 
     def parse(self, response, **kwargs):
         if 'agecheck' in response.url:
@@ -128,7 +135,7 @@ class SteamGamesSpider(scrapy.Spider):
         item['title'] = self.get_text(response, '//div[@id = "appHubAppName"]')
         item['category'] = list(map(lambda s: s.strip(), response.xpath('//div[@class = "blockbg"]/a/text()').getall()[1:]))
         item['reviews_number'], item['rating_value'], item['reviews_summary'] = self.get_reviews(response)
-        item['release_date'] = self.get_release_date(response)
+        item['release_date'] = kwargs['release_date']
         item['developer'] = self.get_text(response, '//div[@id = "developers_list"]/a')
         item['tags'] = self.get_text_list(response, '//div[@class = "glance_tags popular_tags"]/a[@class = "app_tag"]')
         item['genres']= self.get_text_list(response, '//div[@id = "genresAndManufacturer"]/span/a')
