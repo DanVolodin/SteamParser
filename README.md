@@ -6,7 +6,6 @@ An application for parsing Steam - online game store - using scrapy spiders.
 
 To run parser:
 
-1. Add queries you want to search to **SteamParser/spider_steam/spiders/SteamGamesSpider.py** to *queries* variable. You can also chage *SteamGamesSpider.max_pages* variable to alter the number of parsed search pages.
 1. Install scrapy:
 
 ```sh
@@ -21,6 +20,26 @@ $ pip install scrapy
 $ scrapy crawl SteamGamesSpider -O result.json --nolog
 ```
 The result will be saved to result.json file
+
+5*. You can define your own parameters which are described in the next abstract
+
+## Parameters
+
+You can define 3 parameters:
+
+  * Number of pages to search for each query - **pages** - *5* default
+  * Release date filter - **release_date_boundary** - in dayfirst format - *01-01-2001* default
+  * Queries to search - **queries** - in *"query_1, query_2, ..., query_n"* format - *"strategy, anime, sports"* default
+
+To add any of them you need to add ```-a NAME=VALUE``` option to the running command
+
+Example:
+
+```
+scrapy crawl SteamGamesSpider -O games.json -a pages=2 -a release_date_boundary=01-01-2015 -a queries="anime, sims, football"
+
+```
+This will find all games released after 1 January 2015 that can be found in the first 2 pages of search queries "anime", "sims" and "football". The result of this query can be seen it the *games.json* file.
 
 ## JSON result data types
 
