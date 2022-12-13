@@ -17,16 +17,24 @@ from spider_steam.items import SpiderSteamItem
 # Для России - '470,34 руб', США - '$34.66' - повод прописать регулярку
 # Почему важно поддерживать разные валюты? Допустим, мы хотим сравнить цены - посчитать своего рода паритет покупательной способности
 
-queries = ['anime', 'strategy', 'war']
+# queries = ['anime', 'strategy', 'war']
+
 
 class SteamGamesSpider(scrapy.Spider):
     name = 'SteamGamesSpider'
     base_url = 'https://store.steampowered.com/search/?'
-    max_pages = 5
-    release_date_boundary = dt.datetime(year=2001, day=1, month=1)
+
+    def __init__(self, pages=5, release_date_boundary='01-01-2001',
+                 queries=None, **kwargs):
+        if queries is None:
+            queries = "strategy, anime, sports"
+        self.max_pages = int(pages)
+        self.release_date_boundary = parse(release_date_boundary, dayfirst=True)
+        self.queries = map(lambda s: s.strip(), queries.split(','))
+        super().__init__(**kwargs)
 
     def start_requests(self):
-        for query in queries:
+        for query in self.queries:
             url = self.base_url + urlencode({'term': query, 'page': str(1)})
             yield scrapy.Request(url=url, callback=self.parse_query)
 
