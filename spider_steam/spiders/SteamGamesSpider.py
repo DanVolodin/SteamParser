@@ -72,7 +72,7 @@ class SteamGamesSpider(scrapy.Spider):
             if discount == 0:
                 initial_price_str = SteamGamesSpider.get_text(
                     game_selector,
-                    './/div[contains(@class, "search_price")]'
+                    './/div[contains(@class, "search_price ")]'
                 )
                 initial_price = SteamGamesSpider.extract_price(initial_price_str) # для бесплатных оно вернет 0
                 discounted_price = initial_price
